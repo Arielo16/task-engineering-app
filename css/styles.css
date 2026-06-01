@@ -432,6 +432,7 @@ button {
 }
 
 .task-card__priority::before {
+	display: inline-block;
 	width: 0.7em;
 	height: 0.7em;
 	border-radius: 50%;
