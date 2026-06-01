@@ -11,22 +11,31 @@
 		<section class="hero">
 			<div class="hero__copy">
 				<p class="eyebrow">Task Engineering</p>
-				<h1>Organiza tareas con un formulario claro y rápido.</h1>
+				<h1>Organiza tareas con control admin, modales y filtros rápidos.</h1>
 				<p class="hero__text">
-					Crea, prioriza y sigue tus tareas desde una interfaz simple pensada para este proyecto.
+					Crea, prioriza, edita y elimina tareas desde una interfaz más completa pensada para administrarlas mejor.
 				</p>
+				<div class="hero__actions">
+					<button type="button" class="btn btn--primary" id="openTaskModalButton">
+						<span class="material-symbols-outlined" aria-hidden="true">add</span>
+						Nueva tarea
+					</button>
+				</div>
 			</div>
 
 			<div class="hero__stats" aria-label="Resumen de tareas">
 				<article>
+					<span class="material-symbols-outlined" aria-hidden="true">list_alt</span>
 					<span id="totalTasks">0</span>
 					<small>Total</small>
 				</article>
 				<article>
+					<span class="material-symbols-outlined" aria-hidden="true">schedule</span>
 					<span id="pendingTasks">0</span>
 					<small>Pendientes</small>
 				</article>
 				<article>
+					<span class="material-symbols-outlined" aria-hidden="true">task_alt</span>
 					<span id="doneTasks">0</span>
 					<small>Completadas</small>
 				</article>
@@ -34,12 +43,63 @@
 		</section>
 
 		<section class="content-grid">
-			<form id="taskForm" class="task-form" novalidate>
+			<section class="admin-panel" aria-labelledby="adminPanelTitle">
 				<div class="section-heading">
-					<p class="eyebrow">Nueva tarea</p>
-					<h2>Formulario de tareas</h2>
+					<p class="eyebrow">Administrador</p>
+					<h2 id="adminPanelTitle">Control rápido</h2>
 				</div>
 
+				<p class="panel-copy">Busca, filtra y abre el modal de gestión para crear o editar tareas.</p>
+
+				<div class="admin-actions">
+					<button type="button" class="btn btn--secondary" id="clearFiltersButton">
+						<span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+						Limpiar filtros
+					</button>
+				</div>
+
+				<div class="admin-filters">
+					<label>
+						<span>Buscar</span>
+						<input type="search" id="taskSearch" placeholder="Título, categoría o descripción">
+					</label>
+
+					<label>
+						<span>Estado</span>
+						<select id="taskStatusFilter">
+							<option value="all">Todas</option>
+							<option value="pending">Pendientes</option>
+							<option value="completed">Completadas</option>
+						</select>
+					</label>
+				</div>
+			</section>
+
+			<section class="task-board" aria-labelledby="taskBoardTitle">
+				<div class="section-heading">
+					<p class="eyebrow">Listado</p>
+					<h2 id="taskBoardTitle">Tareas registradas</h2>
+				</div>
+
+				<div id="taskList" class="task-list" aria-live="polite"></div>
+			</section>
+		</section>
+	</main>
+
+	<div class="modal" id="taskModal" aria-hidden="true">
+		<div class="modal__backdrop" data-modal-close="task"></div>
+		<div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+			<div class="modal__header">
+				<div>
+					<p class="eyebrow">Gestión</p>
+					<h2 id="taskModalTitle">Nueva tarea</h2>
+				</div>
+				<button type="button" class="icon-button" data-modal-close="task" aria-label="Cerrar modal de tarea">
+					<span class="material-symbols-outlined" aria-hidden="true">close</span>
+				</button>
+			</div>
+
+			<form id="taskForm" class="task-form task-form--modal" novalidate>
 				<label>
 					<span>Título</span>
 					<input type="text" id="taskTitle" name="taskTitle" placeholder="Ej. Revisar backlog" maxlength="80" required>
@@ -72,23 +132,41 @@
 				</label>
 
 				<div class="form-actions">
-					<button type="submit" class="btn btn--primary">Agregar tarea</button>
-					<button type="reset" class="btn btn--secondary">Limpiar</button>
+					<button type="submit" class="btn btn--primary" id="saveTaskButton">Agregar tarea</button>
+					<button type="button" class="btn btn--secondary" data-modal-close="task">Cancelar</button>
 				</div>
 
 				<p id="formMessage" class="form-message" aria-live="polite"></p>
 			</form>
+		</div>
+	</div>
 
-			<section class="task-board" aria-labelledby="taskBoardTitle">
-				<div class="section-heading">
-					<p class="eyebrow">Listado</p>
-					<h2 id="taskBoardTitle">Tareas registradas</h2>
+	<div class="modal" id="deleteModal" aria-hidden="true">
+		<div class="modal__backdrop" data-modal-close="delete"></div>
+		<div class="modal__dialog modal__dialog--compact" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+			<div class="modal__header">
+				<div>
+					<p class="eyebrow">Confirmación</p>
+					<h2 id="deleteModalTitle">Eliminar tarea</h2>
 				</div>
+				<button type="button" class="icon-button" data-modal-close="delete" aria-label="Cerrar confirmación de eliminación">
+					<span class="material-symbols-outlined" aria-hidden="true">close</span>
+				</button>
+			</div>
 
-				<div id="taskList" class="task-list" aria-live="polite"></div>
-			</section>
-		</section>
-	</main>
+			<p class="modal__text">
+				Vas a eliminar <strong id="deleteTaskName">esta tarea</strong>. Esta acción no se puede deshacer.
+			</p>
+
+			<div class="form-actions">
+				<button type="button" class="btn btn--danger" id="confirmDeleteButton">
+					<span class="material-symbols-outlined" aria-hidden="true">delete</span>
+					Eliminar
+				</button>
+				<button type="button" class="btn btn--secondary" data-modal-close="delete">Cancelar</button>
+			</div>
+		</div>
+	</div>
 
 	<template id="taskTemplate">
 		<article class="task-card">
@@ -105,8 +183,18 @@
 			<div class="task-card__footer">
 				<span class="task-card__date"></span>
 				<div class="task-card__actions">
-					<button type="button" class="btn btn--ghost task-toggle">Completar</button>
-					<button type="button" class="btn btn--danger task-delete">Eliminar</button>
+						<button type="button" class="btn btn--ghost task-edit">
+							<span class="material-symbols-outlined" aria-hidden="true">edit</span>
+							<span class="task-edit__label">Editar</span>
+						</button>
+						<button type="button" class="btn btn--ghost task-toggle">
+							<span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+							<span class="task-toggle__label">Completar</span>
+						</button>
+						<button type="button" class="btn btn--danger task-delete">
+							<span class="material-symbols-outlined" aria-hidden="true">delete</span>
+							<span class="task-delete__label">Eliminar</span>
+						</button>
 				</div>
 			</div>
 		</article>

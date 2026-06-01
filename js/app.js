@@ -5,9 +5,26 @@ const formMessage = document.getElementById('formMessage');
 const totalTasks = document.getElementById('totalTasks');
 const pendingTasks = document.getElementById('pendingTasks');
 const doneTasks = document.getElementById('doneTasks');
+const taskModal = document.getElementById('taskModal');
+const deleteModal = document.getElementById('deleteModal');
+const taskModalTitle = document.getElementById('taskModalTitle');
+const saveTaskButton = document.getElementById('saveTaskButton');
+const deleteTaskName = document.getElementById('deleteTaskName');
+const confirmDeleteButton = document.getElementById('confirmDeleteButton');
+const openTaskModalButton = document.getElementById('openTaskModalButton');
+const clearFiltersButton = document.getElementById('clearFiltersButton');
+const taskSearch = document.getElementById('taskSearch');
+const taskStatusFilter = document.getElementById('taskStatusFilter');
+const taskTitleInput = document.getElementById('taskTitle');
+const taskDescriptionInput = document.getElementById('taskDescription');
+const taskPriorityInput = document.getElementById('taskPriority');
+const taskDueDateInput = document.getElementById('taskDueDate');
+const taskCategoryInput = document.getElementById('taskCategory');
 
 const storageKey = 'task-engineering-app.tasks';
 let tasks = loadTasks();
+let editingTaskId = null;
+let deletingTaskId = null;
 
 function loadTasks() {
 	try {
@@ -52,6 +69,101 @@ function setMessage(text, type = '') {
 	}
 }
 
+function getTaskById(taskId) {
+	return tasks.find((task) => task.id === taskId);
+}
+
+function openModal(modalElement) {
+	modalElement.classList.add('is-open');
+	modalElement.setAttribute('aria-hidden', 'false');
+	document.body.classList.add('modal-open');
+}
+
+function closeModal(modalElement) {
+	modalElement.classList.remove('is-open');
+	modalElement.setAttribute('aria-hidden', 'true');
+
+	if (!taskModal.classList.contains('is-open') && !deleteModal.classList.contains('is-open')) {
+		document.body.classList.remove('modal-open');
+	}
+}
+
+function resetTaskForm() {
+	taskForm.reset();
+	taskPriorityInput.value = 'media';
+	editingTaskId = null;
+	taskModalTitle.textContent = 'Nueva tarea';
+	saveTaskButton.textContent = 'Agregar tarea';
+}
+
+function fillTaskForm(task) {
+	taskTitleInput.value = task.title || '';
+	taskDescriptionInput.value = task.description || '';
+	taskPriorityInput.value = task.priority || 'media';
+	taskDueDateInput.value = task.dueDate || '';
+	taskCategoryInput.value = task.category || '';
+}
+
+function openTaskModal(task = null) {
+	setMessage('');
+
+	if (task) {
+		editingTaskId = task.id;
+		taskModalTitle.textContent = 'Editar tarea';
+		saveTaskButton.textContent = 'Guardar cambios';
+		taskForm.reset();
+		fillTaskForm(task);
+	} else {
+		resetTaskForm();
+	}
+
+	openModal(taskModal);
+	globalThis.setTimeout(() => taskTitleInput.focus(), 0);
+}
+
+function closeTaskModal() {
+	closeModal(taskModal);
+	resetTaskForm();
+}
+
+function openDeleteModal(taskId) {
+	const task = getTaskById(taskId);
+
+	if (!task) {
+		return;
+	}
+
+	deletingTaskId = taskId;
+	deleteTaskName.textContent = task.title;
+	openModal(deleteModal);
+}
+
+function closeDeleteModal() {
+	deletingTaskId = null;
+	closeModal(deleteModal);
+}
+
+function normalizeText(value) {
+	return value.toLowerCase().trim();
+}
+
+function getFilteredTasks() {
+	const query = normalizeText(taskSearch.value);
+	const status = taskStatusFilter.value;
+
+	return tasks.filter((task) => {
+		const matchesQuery = !query || [task.title, task.description, task.category]
+			.filter(Boolean)
+			.some((field) => normalizeText(field).includes(query));
+		const isCompleted = Boolean(task.completed);
+		const matchesStatus = status === 'all'
+			|| (status === 'pending' && !isCompleted)
+			|| (status === 'completed' && isCompleted);
+
+		return matchesQuery && matchesStatus;
+	});
+}
+
 function updateStats() {
 	const completed = tasks.filter((task) => task.completed).length;
 
@@ -60,10 +172,10 @@ function updateStats() {
 	doneTasks.textContent = completed;
 }
 
-function renderEmptyState() {
+function renderEmptyState(message = 'No hay tareas todavía. Usa el panel para crear la primera.') {
 	taskList.innerHTML = '';
 	taskList.classList.add('is-empty');
-	taskList.textContent = 'No hay tareas todavía. Usa el formulario para crear la primera.';
+	taskList.textContent = message;
 }
 
 function renderTasks() {
@@ -73,10 +185,18 @@ function renderTasks() {
 		return;
 	}
 
+	const filteredTasks = getFilteredTasks();
+
 	taskList.classList.remove('is-empty');
 	taskList.innerHTML = '';
 
-	tasks.forEach((task) => {
+	if (!filteredTasks.length) {
+		renderEmptyState('No hay tareas que coincidan con los filtros actuales.');
+		updateStats();
+		return;
+	}
+
+	filteredTasks.forEach((task) => {
 		const card = taskTemplate.content.firstElementChild.cloneNode(true);
 		card.dataset.id = task.id;
 		card.dataset.priority = task.priority;
@@ -92,10 +212,12 @@ function renderTasks() {
 		priorityBadge.textContent = priorityLabel(task.priority);
 
 		const toggleButton = card.querySelector('.task-toggle');
-		toggleButton.textContent = task.completed ? 'Reabrir' : 'Completar';
+		toggleButton.querySelector('.task-toggle__label').textContent = task.completed ? 'Reabrir' : 'Completar';
+
+		card.querySelector('.task-edit').addEventListener('click', () => openTaskModal(task));
 
 		toggleButton.addEventListener('click', () => toggleTask(task.id));
-		card.querySelector('.task-delete').addEventListener('click', () => deleteTask(task.id));
+		card.querySelector('.task-delete').addEventListener('click', () => openDeleteModal(task.id));
 
 		taskList.appendChild(card);
 	});
@@ -112,6 +234,17 @@ function addTask(taskData) {
 		},
 		...tasks,
 	];
+
+	saveTasks();
+	renderTasks();
+}
+
+function updateTask(taskId, taskData) {
+	tasks = tasks.map((task) => (
+		task.id === taskId
+			? { ...task, ...taskData }
+			: task
+	));
 
 	saveTasks();
 	renderTasks();
@@ -135,35 +268,78 @@ function deleteTask(taskId) {
 	setMessage('Tarea eliminada.', 'is-success');
 }
 
+function clearFilters() {
+	taskSearch.value = '';
+	taskStatusFilter.value = 'all';
+	renderTasks();
+}
+
 taskForm.addEventListener('submit', (event) => {
 	event.preventDefault();
 
-	const title = document.getElementById('taskTitle').value.trim();
-	const description = document.getElementById('taskDescription').value.trim();
-	const priority = document.getElementById('taskPriority').value;
-	const dueDate = document.getElementById('taskDueDate').value;
-	const category = document.getElementById('taskCategory').value.trim();
+	const title = taskTitleInput.value.trim();
+	const description = taskDescriptionInput.value.trim();
+	const priority = taskPriorityInput.value;
+	const dueDate = taskDueDateInput.value;
+	const category = taskCategoryInput.value.trim();
 
 	if (!title || !dueDate) {
 		setMessage('Completa al menos el título y la fecha límite.', 'is-error');
 		return;
 	}
 
-	addTask({
+	const taskData = {
 		title,
 		description,
 		priority,
 		dueDate,
 		category,
-	});
+	};
 
-	taskForm.reset();
-	document.getElementById('taskPriority').value = 'media';
-	setMessage('Tarea agregada correctamente.', 'is-success');
+	if (editingTaskId) {
+		updateTask(editingTaskId, taskData);
+		setMessage('Tarea actualizada correctamente.', 'is-success');
+	} else {
+		addTask(taskData);
+		setMessage('Tarea agregada correctamente.', 'is-success');
+	}
+
+	closeTaskModal();
 });
 
-taskForm.addEventListener('reset', () => {
-	setMessage('');
+openTaskModalButton.addEventListener('click', () => openTaskModal());
+clearFiltersButton.addEventListener('click', clearFilters);
+taskSearch.addEventListener('input', renderTasks);
+taskStatusFilter.addEventListener('change', renderTasks);
+
+document.querySelectorAll('[data-modal-close]').forEach((element) => {
+	element.addEventListener('click', () => {
+		const modalType = element.dataset.modalClose;
+
+		if (modalType === 'task') {
+			closeTaskModal();
+		}
+
+		if (modalType === 'delete') {
+			closeDeleteModal();
+		}
+	});
+});
+
+confirmDeleteButton.addEventListener('click', () => {
+	if (!deletingTaskId) {
+		return;
+	}
+
+	deleteTask(deletingTaskId);
+	closeDeleteModal();
+});
+
+document.addEventListener('keydown', (event) => {
+	if (event.key === 'Escape') {
+		closeTaskModal();
+		closeDeleteModal();
+	}
 });
 
 renderTasks();
